@@ -331,15 +331,15 @@ textarea{resize:vertical;min-height:60px}
 
     <div class="err-summary" id="errBox"></div>
     <div class="actions">
-      <button type="submit" class="btn btn-primary" id="submitBtn">Finalizar e baixar respostas</button>
-      <p class="note">Ao finalizar, um arquivo .json será gerado. No celular você poderá compartilhá-lo; no computador, ele será baixado.</p>
+      <button type="submit" class="btn btn-primary" id="submitBtn">Finalizar e enviar respostas</button>
+      <p class="note">Ao finalizar, no celular abre o compartilhamento; no computador, o arquivo .json é baixado.</p>
     </div>
   </form>
 
   <div class="done" id="done">
     <div class="check">✓</div>
     <h2>Respostas registradas!</h2>
-    <p>Seu arquivo de respostas está pronto. No celular, a opção de compartilhar deve abrir automaticamente; no computador, o download inicia sozinho.</p>
+    <p>Seu arquivo de respostas está pronto. No celular, o compartilhamento deve abrir automaticamente (WhatsApp, e-mail, etc.); no computador, o download inicia sozinho.</p>
     <p>Se nada aconteceu, toque abaixo.</p>
     <div class="filecode" id="fileName"></div>
     <div class="actions" style="max-width:320px;margin:20px auto 0">
@@ -455,7 +455,7 @@ function validate(){
   return { missingText, missingItems };
 }
 
-form.addEventListener('submit', async function(e){
+form.addEventListener('submit', function(e){
   e.preventDefault();
   const errBox = document.getElementById('errBox');
   const { missingText, missingItems } = validate();
@@ -482,7 +482,8 @@ form.addEventListener('submit', async function(e){
   const safe = (pid||'SEM_CODIGO').replace(/[^a-zA-Z0-9_-]/g,'_');
   lastName = 'respostas_'+PERIOD+'_'+safe+'.json';
 
-  await saveAndShare();
+  // Dispara o share ainda dentro do gesto do clique em "Finalizar"
+  saveAndShare();
 
   document.querySelector('header').style.display='none';
   form.style.display='none';
@@ -503,22 +504,32 @@ function triggerDownload(){
   setTimeout(()=>URL.revokeObjectURL(url), 1500);
 }
 
-async function saveAndShare(){
-  if(!lastBlob) return;
-  const file = new File([lastBlob], lastName, {type:'application/json'});
-  const canShareFile = navigator.share && navigator.canShare && navigator.canShare({files:[file]});
+function createShareFile(){
+  // Web Share API não aceita application/json — só tipos como text/plain
+  const shareName = lastName.replace(/\.json$/i, '.txt');
+  return new File([lastBlob], shareName, {type:'text/plain'});
+}
 
-  // Compartilhar primeiro — o download consome o gesto do usuário e impede o share
-  if(canShareFile){
-    try{
-      await navigator.share({
-        files:[file],
-        title:'Respostas do questionário',
-        text:'Segue o arquivo com as minhas respostas do questionário.',
+function saveAndShare(){
+  if(!lastBlob) return;
+
+  if(navigator.share){
+    const shareFile = createShareFile();
+    const shareData = {
+      files:[shareFile],
+      title:'Respostas do questionário',
+      text:'Segue o arquivo com as minhas respostas do questionário.',
+    };
+    const canShareFile = !navigator.canShare || navigator.canShare({files:[shareFile]});
+
+    if(canShareFile){
+      navigator.share(shareData).then(function(){
+        // compartilhado com sucesso
+      }).catch(function(e){
+        if(e.name === 'AbortError') return;
+        triggerDownload();
       });
       return;
-    } catch(e){
-      if(e.name === 'AbortError') return;
     }
   }
 
