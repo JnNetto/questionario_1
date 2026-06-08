@@ -332,18 +332,18 @@ textarea{resize:vertical;min-height:60px}
     <div class="err-summary" id="errBox"></div>
     <div class="actions">
       <button type="submit" class="btn btn-primary" id="submitBtn">Finalizar e baixar respostas</button>
-      <p class="note">Ao finalizar, um arquivo .json será baixado. Envie-o ao pesquisador pelo canal combinado.</p>
+      <p class="note">Ao finalizar, um arquivo .json será gerado. No celular você poderá compartilhá-lo; no computador, ele será baixado.</p>
     </div>
   </form>
 
   <div class="done" id="done">
     <div class="check">✓</div>
     <h2>Respostas registradas!</h2>
-    <p>Seu arquivo de respostas foi baixado automaticamente. Envie-o ao pesquisador por WhatsApp ou e-mail.</p>
-    <p>Se o download não começou, toque abaixo.</p>
+    <p>Seu arquivo de respostas está pronto. No celular, a opção de compartilhar deve abrir automaticamente; no computador, o download inicia sozinho.</p>
+    <p>Se nada aconteceu, toque abaixo.</p>
     <div class="filecode" id="fileName"></div>
     <div class="actions" style="max-width:320px;margin:20px auto 0">
-      <button class="btn btn-primary" id="redownload">Baixar novamente</button>
+      <button class="btn btn-primary" id="redownload">Baixar ou compartilhar</button>
     </div>
   </div>
 </div>
@@ -505,21 +505,24 @@ function triggerDownload(){
 
 async function saveAndShare(){
   if(!lastBlob) return;
-  // 1. Baixa sempre (fallback garantido)
-  triggerDownload();
-  // 2. Tenta compartilhar via Web Share API (funciona no Android/iOS)
   const file = new File([lastBlob], lastName, {type:'application/json'});
-  if(navigator.canShare && navigator.canShare({files:[file]})){
+  const canShareFile = navigator.share && navigator.canShare && navigator.canShare({files:[file]});
+
+  // Compartilhar primeiro — o download consome o gesto do usuário e impede o share
+  if(canShareFile){
     try{
       await navigator.share({
         files:[file],
         title:'Respostas do questionário',
         text:'Segue o arquivo com as minhas respostas do questionário.',
       });
+      return;
     } catch(e){
-      // Usuário cancelou ou erro — download já foi feito, tudo bem
+      if(e.name === 'AbortError') return;
     }
   }
+
+  triggerDownload();
 }
 
 document.getElementById('redownload').addEventListener('click', saveAndShare);
